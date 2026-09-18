@@ -1,0 +1,13 @@
+# Logs and editor noise
+*.log
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Installed dependencies (this package has none; `node_modules` would only ever
+# hold a local link to the dsh checkout, which must never be committed)
+node_modules/
+
+# Local scratch from the e2e suite
+/tmp-*
