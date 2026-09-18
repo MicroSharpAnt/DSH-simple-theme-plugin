@@ -17,8 +17,8 @@ import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
-/** The loader row `name` the profile mounts — the discovery entry point. */
-const ROW_NAME = join(here, 'index.js')
+/** The loader row `name` the profile mounts for local development. */
+const ROW_NAME = join(here, 'host.js')
 
 const failures = []
 const notes = []
@@ -150,6 +150,47 @@ const roster = new Set([
 ])
 for (const dep of decl?.inject ?? []) {
   check(roster.has(dep), `declared inject is a known client plugin`, dep)
+}
+
+// --- bundle install contract --------------------------------------------------
+// Installing through the GUI adds this package to a profile and mounts its host
+// rows from `dsh.bundle.patch`. A package without that declaration is taken as a
+// plain dependency ("declares no dsh.bundle — installed as a plain dependency,
+// not a profile layer"), so the host half never loads — while the client half
+// still is discovered from `dsh.client`. The result is quietly broken: the
+// settings row renders and clicks land, but the pre-paint injection does nothing
+// and the durable write has no namespace to reach.
+{
+  const own = JSON.parse(readFileSync(join(here, 'package.json'), 'utf8'))
+
+  check(exactPackageSpecifier(own.name) === own.name,
+    'package name is a bare specifier the installer accepts', String(own.name))
+
+  const bundlePatch = own.dsh?.bundle?.patch
+  check(typeof bundlePatch === 'string' && bundlePatch !== '',
+    'dsh.bundle.patch is declared, so the host half is mounted on install', String(bundlePatch))
+
+  if (typeof bundlePatch === 'string' && bundlePatch !== '') {
+    // `files[]` entries are matched without a leading `./`, while the declared
+    // patch path conventionally carries one; compare them normalized.
+    const normalize = (entry) => entry.replace(/^\.\//, '')
+    check((own.files ?? []).map(normalize).includes(normalize(bundlePatch)),
+      'files[] ships the bundle patch (an npm publish would omit it otherwise)', bundlePatch)
+
+    const patchPath = join(here, bundlePatch)
+    check(existsSync(patchPath), 'the declared bundle patch exists on disk', patchPath)
+
+    if (existsSync(patchPath)) {
+      const patch = readFileSync(patchPath, 'utf8')
+      check(patch.includes('- insert:'), 'the bundle patch contributes a row')
+      check(new RegExp(`name:\\s*['"]${own.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"]`).test(patch),
+        'the bundle patch mounts this package by its own name', String(own.name))
+      // A path here would only ever resolve on the machine that wrote it.
+      const rowNames = [...patch.matchAll(/name:\s*(['"]?)([^'"\n]+)\1/g)].map(match => match[2].trim())
+      check(rowNames.length > 0 && rowNames.every(name => exactPackageSpecifier(name) !== undefined),
+        'every row name is a package specifier, not a machine-specific path', rowNames.join(', '))
+    }
+  }
 }
 
 /** Print the collected results and set the exit status. */

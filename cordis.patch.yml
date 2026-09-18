@@ -1,0 +1,17 @@
+# The dsh-theme-presets bundle patch: mounts the host half.
+#
+# A bundle contributes rows to the profile through its own patch file, named by
+# `dsh.bundle.patch` in package.json. Without that declaration the installer
+# takes the package as a plain dependency rather than a profile layer
+# ("declares no dsh.bundle — installed as a plain dependency, not a profile
+# layer") and this row never loads. The failure is quiet and looks like a bug
+# in the plugin: the client half is still discovered from `dsh.client`, so the
+# settings row renders and clicking works, while the pre-paint injection does
+# nothing and the durable write has no namespace to land in.
+#
+# `name` is a package specifier, not a path: the loader resolves it against the
+# profile's node_modules, so it finds this package wherever pnpm put it — a git
+# install, a local path install, or a checkout.
+- insert:
+    - id: theme-presets
+      name: 'dsh-theme-presets'

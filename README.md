@@ -20,6 +20,16 @@ git@github.com:MicroSharpAnt/DSH-simple-theme-plugin.git
 
 本包**没有任何运行时依赖**。
 
+包通过 `dsh.bundle.patch` 声明自己的宿主层（见 `cordis.patch.yml`）。**这个声明不能省**：
+安装器只把声明了 `dsh.bundle` 的包当作 profile 层，其余的按普通依赖装入——
+那样宿主半不会加载，而客户端半仍会因 `dsh.client` 被发现，症状是设置行照常显示、
+点击也有反应，但首屏注入不生效、选择也存不下来。`verify-contract.mjs` 里有断言钉住这一点。
+
+### 从本地目录安装（开发时）
+
+插件安装界面也接受绝对路径，指向工作副本即可，装完改代码后重启 dsh web 生效。
+注意**不要同时**保留本地路径安装和 `cordis.patch.yml` 里的手写条目，两者 id 相同会冲突。
+
 ## 用法
 
 **设置 → 通用 → 主题预设**，点一个色块。
