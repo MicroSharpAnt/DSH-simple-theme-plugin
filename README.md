@@ -4,14 +4,20 @@ DSH Web GUI 的主题预设插件：在内置的 **浅色 / 深色 / 跟随系�
 
 ## 安装
 
-在 DSH 的插件安装界面里填本仓库地址：
+在 DSH 的插件安装界面里填：
 
 ```
-git@github.com:MicroSharpAnt/DSH-simple-theme-plugin.git
+https://github.com/MicroSharpAnt/DSH-simple-theme-plugin.git
 ```
 
-或 HTTPS 形式 `https://github.com/MicroSharpAnt/DSH-simple-theme-plugin.git`
-（安装走 pnpm，两种都能识别）。
+**不要用 `git@github.com:...` 这种 scp 语法。** 它虽然能被 DSH 的预检接受
+（`install-spec.ts` 的 `GIT_URL` 正则认得 `git@host:`），却会被 pnpm 按 `name@range`
+拆成「包名 `git` + 版本 `github.com:...`」，于是装出一个**悬空的 `node_modules/git`
+软链**，实际什么都没装上——日志特征是 `added 0` 和 `+ git link:github.com:...`，
+而 profile 的 `dependencies` 与 `dsh.profile.bundles` 都不变。
+
+同样有效的写法：`github:MicroSharpAnt/DSH-simple-theme-plugin`、
+`git+ssh://git@github.com/MicroSharpAnt/DSH-simple-theme-plugin.git`。
 
 **安装后无需构建**：浏览器端 bundle `lib/client.js` 是随仓库提交的产物。
 这一点是刻意的——pnpm 默认拦截依赖的构建脚本（`ERR_PNPM_IGNORED_BUILDS`），
