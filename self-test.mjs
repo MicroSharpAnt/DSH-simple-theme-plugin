@@ -76,7 +76,7 @@ function harness({ status = 'ready', preset = DEFAULT_PRESET_ID } = {}) {
     effect(callback) { const disposer = callback(); effects.push(disposer); return () => {} },
     locale: { register(namespace, dict) { ctx.localeRegistrations.push([namespace, dict]) }, regs: [] },
     localeRegistrations: [],
-    settingsScope: { bind(spec) { ctx.boundNamespace = spec.namespace; return scope } },
+    configForms: { get(entryId) { ctx.boundNamespace = entryId; return scope } },
     theme: {
       getTheme: () => ({ active: { colorScheme: scheme }, preference: scheme, tokens: {} }),
       overrideTokens(source, tokens) { overrideCalls.push({ source, tokens }); return () => {} },
@@ -137,9 +137,9 @@ const fakeReact = { createElement: () => ({}), useSyncExternalStore: () => DEFAU
   const plugin = install(() => ({}), fakeReact, data)
   plugin.apply(ctx)
 
-  check(plugin.inject.includes('theme') && plugin.inject.includes('settingsScope'),
-    'plugin declares theme and settingsScope')
-  check(ctx.boundNamespace === 'theme-presets', 'binds the theme-presets namespace')
+  check(plugin.inject.includes('theme') && plugin.inject.includes('configForms'),
+    'plugin declares theme and configForms')
+  check(ctx.boundNamespace === 'theme-presets', 'gets the theme-presets form')
 
   const adopted = overrideCalls.at(-1)
   check(adopted !== undefined && adopted.source === 'theme-presets', 'stacks one override layer')

@@ -57,7 +57,7 @@ check(requireCalls.length === 1 && requireCalls[0] === 'react',
   'factory requires only react from the seed', requireCalls.join(', '))
 check(typeof plugin.apply === 'function', 'exports a callable apply')
 check(Array.isArray(plugin.inject), 'exports an inject list')
-check(plugin.inject.includes('theme') && plugin.inject.includes('settingsScope'),
+check(plugin.inject.includes('theme') && plugin.inject.includes('configForms'),
   'inject names the services the row needs', JSON.stringify(plugin.inject))
 
 // The bundle must be a plain classic script: ESM syntax would throw in

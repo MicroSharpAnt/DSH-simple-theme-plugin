@@ -59,7 +59,7 @@ export function createPresetSchema(ids, fallback) {
  * walking `refs` and following the numeric ids in `list`/`dict`. An earlier
  * version of this function emitted a flatter, self-evidently-equivalent object
  * and the row silently never adopted its stored value — the schema was
- * rejected at decode time, so `settingsScope` never reached `ready`.
+ * rejected at decode time, so the configuration form never reached `ready`.
  *
  * Reference shape, verified against the real library:
  * `{"uid":8,"refs":{"2":{"type":"const","meta":{"required":true},"value":"default"},

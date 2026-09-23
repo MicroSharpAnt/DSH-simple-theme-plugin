@@ -148,7 +148,7 @@ https://github.com/MicroSharpAnt/DSH-simple-theme-plugin.git
    HMR 只重建 bundle、不重读 package.json（`graphRow(id, rev, record.meta)`
    沿用旧 meta），所以改了那几项要重启才更新。
    它只影响加载顺序、不影响功能：真正的依赖由 bundle 里 `exports.inject`
-   的服务名（`theme` / `slots` / `locale` / `settingsScope` / `remote`）保证，
+   的服务名（`theme` / `slots` / `locale` / `configForms` / `remote`）保证，
    cordis 会等到服务出现才 apply。
 
 ## 为什么自带一份 schema
