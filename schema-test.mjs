@@ -17,6 +17,9 @@ const ref = schema({ preset: 'nord' }).preset
 ref[Symbol.for('cosmokit.volatile.write')]('dracula')
 assert.equal(ref.get(), 'dracula')
 const json = schema.toJSON()
+assert.equal(schema.type, 'object')
+assert.equal(schema.dict.preset.meta.volatile, true)
+assert.equal(schema.dict.preset.toJSON().refs[schema.dict.preset.toJSON().uid].type, 'union')
 const root = json.refs[json.uid]
 assert.equal(root.type, 'object')
 const union = json.refs[root.dict.preset]

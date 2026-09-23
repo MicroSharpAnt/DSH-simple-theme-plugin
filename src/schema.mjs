@@ -27,6 +27,18 @@ export function createPresetSchema(ids, fallback) {
   }
 
   schema.toJSON = () => presetSchemaJson(ids, fallback)
+  schema.type = 'object'
+  schema.meta = { default: {} }
+  schema.dict = {
+    [FIELD]: {
+      type: 'union',
+      meta: { default: fallback, volatile: true },
+      toJSON: () => {
+        const json = presetSchemaJson(ids, fallback)
+        return { ...json, uid: json.refs[json.uid].dict[FIELD] }
+      },
+    },
+  }
   schema['~standard'] = {
     version: 1,
     vendor: 'dsh-theme-presets',
