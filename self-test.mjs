@@ -49,7 +49,7 @@ const slotRegistrations = []
 const overrideCalls = []
 
 /** Build a context + scope pair whose status the test can drive. */
-function harness({ status = 'ready', preset = DEFAULT_PRESET_ID } = {}) {
+function harness({ status = 'ready', preset = DEFAULT_PRESET_ID, writable = true } = {}) {
   const scopeState = {
     status,
     value: preset === undefined ? undefined : { preset },
@@ -62,11 +62,16 @@ function harness({ status = 'ready', preset = DEFAULT_PRESET_ID } = {}) {
       status: scopeState.status,
       value: scopeState.status === 'loading' ? undefined : scopeState.value,
       revision: 1,
-      writable: true,
+      writable,
       mode: 'host',
     }),
     subscribe(listener) { scopeListeners.add(listener); return () => { scopeListeners.delete(listener) } },
-    set: async (field, value) => { writes.push([field, value]); scopeState.value = { preset: value } },
+    set: async (field, value) => {
+      writes.push([field, value])
+      if (!writable) return false
+      scopeState.value = { preset: value }
+      return true
+    },
   }
 
   let scheme = 'light'
@@ -174,6 +179,18 @@ const fakeReact = { createElement: () => ({}), useSyncExternalStore: () => DEFAU
   check(ctx.writes.at(-1)[0] === 'preset' && ctx.writes.at(-1)[1] === 'gruvbox',
     'persists the selection through the settings scope')
   check(injected.readPreset() === 'gruvbox', 'row reads the new selection back')
+}
+
+// --- refused write restores the saved selection -------------------------------
+{
+  const ctx = harness({ status: 'ready', preset: DEFAULT_PRESET_ID, writable: false })
+  install(() => ({}), fakeReact, data).apply(ctx)
+  const injected = slotRegistrations.at(-1)[1].options.inject()
+  injected.select('nord')
+  await Promise.resolve()
+  await Promise.resolve()
+  check(injected.readPreset() === DEFAULT_PRESET_ID,
+    'a refused settings write restores the saved selection')
 }
 
 // --- scenario 3: defer while the durable value is still loading ---------------

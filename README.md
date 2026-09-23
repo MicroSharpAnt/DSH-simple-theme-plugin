@@ -45,7 +45,7 @@ https://github.com/MicroSharpAnt/DSH-simple-theme-plugin.git
   「跟随系统」则跟着系统在两者之间切。
 - 每个色块显示当前明暗模式下该预设的底色 / 强调色 / 正文色，会随「外观」一起变。
 - **默认** = DSH 自带配色，不做任何覆盖。
-- 选择写进 settings 的 `theme-presets.preset`（`~/.dsh/settings.yaml`），跨刷新、跨重启保留。
+- 选择写进当前 Web profile 的 `cordis.patch.yml` 中 `theme-presets.config.preset`，跨刷新、跨重启保留。
 
 ## 八个预设
 
@@ -119,67 +119,48 @@ https://github.com/MicroSharpAnt/DSH-simple-theme-plugin.git
 `lib/client.js` 要单独构建，是因为浏览器端拿不到文件系统，palette 数据必须
 在构建时内联进 bundle；宿主端则每次 index 渲染现读 `presets.mjs`。
 
-## 宿主端的四个约束
+## 宿主端加载
 
-前三个是 DSH 插件加载机制造成的，与本插件无关，但改代码时一定会撞上；
-第四个是本插件自己的一条硬性要求。
+`Config` 由宿主入口同步导出，DSH Settings 从活动插件的 schema 生成表单。
+插件读 `config.preset.get()`，因此修改选择后，下一次首屏注入也能读到新值。
 
-1. **settings 的注册必须同步完成，不能跨 `await`。**
-   这是最难发现、也最容易被无意破坏的一条。客户端的 settings mirror 只在
-   **启动时**读一次 `settings.describe`，之后只在文档变更或连接重置时才重读。
-   比这次读取更晚注册的 namespace **再也不会被 describe**，于是浏览器端的
-   scope 永远停在 `status: 'loading'`，而浏览器半**刻意等到 `ready` 才接管**——
-   结果是：设置行正常显示、点击切换也正常，但**刷新后首屏注入不会被接管**，
-   看起来就像"预设没生效"。
-   所以 `apply()` 里注册 namespace 的那几行必须在**第一个 `await` 之前**，
-   `host-test.mjs` 里有一条断言专门钉住这个行为（它在同步阶段就检查注册已完成）。
-
-2. **同路径的模块会被 ESM 缓存。**
+1. **同路径的模块会被 ESM 缓存。**
    cordis 重载时按绝对路径 `import()` 插件，而 Node 对重复的 specifier 直接返回
    缓存模块——所以**改了被静态导入的源码，进程里跑的仍然是旧代码**。
-   本插件的取舍是：只有 `presets.mjs`（用户真正会调的文件）走 mtime 动态载入，
-   `host.js` 与 `src/plugin.mjs` 为了满足第 1 条而静态导入，代价是改它们要重启。
+   本插件只有 `presets.mjs` 走 mtime 动态载入；改 `host.js` 或 `src/plugin.mjs` 要重启。
 
-3. **patch 条目按 `id` 做 diff，改 `name` 不生效。**
+2. **patch 条目按 `id` 做 diff，改 `name` 不生效。**
    只改注释不触发重载；改 `name` 也**不会**换用新路径，实测仍旧加载缓存里的旧模块。
    要让条目真正卸载重装，得先把整个 `- insert:` 块删掉保存，再加回来保存。
 
-4. **`package.json` 的 `dsh.client.inject` 只在进程启动时解析。**
+3. **`package.json` 的 `dsh.client.inject` 只在进程启动时解析。**
    HMR 只重建 bundle、不重读 package.json（`graphRow(id, rev, record.meta)`
    沿用旧 meta），所以改了那几项要重启才更新。
    它只影响加载顺序、不影响功能：真正的依赖由 bundle 里 `exports.inject`
    的服务名（`theme` / `slots` / `locale` / `configForms` / `remote`）保证，
    cordis 会等到服务出现才 apply。
 
-## 为什么自带一份 schema
+## 配置 schema
 
-`settings.register()` 需要一个含 `toJSON()` 的 schemastery schema。而
-`@deepseek-ai/schemastery` 是 dsh 仓库内的私有包（内部一律 `workspace:^` 引用，
-未发布到任何 registry），**从 git 安装的插件无法依赖它**。
-
-settings 只用到 schema 的两件事：调用它做校验+补默认值，以及读 `toJSON()`
-描述形状。所以 `src/schema.mjs` 自己实现了这个小接口。
-
-有一个必须注意的细节：`toJSON()` 的输出**必须与 schemastery 的引用表格式结构一致**
-（`{uid, refs}`，其中 `union.list` 放的是**数字引用**而不是字面量），因为客户端会
-拿它去 `new Schema(envelope)` 重新水合。早期版本输出的是等价的扁平对象，
-结构上"看起来更清楚"，但**在客户端解码时被拒**，症状就是上面第 1 条描述的那样静默失效。
-`schema-test.mjs` 因此断言的是引用表结构本身，而不是它的语义。
+宿主导出 `Config`，把 `preset` 声明为可实时修改的字段。DSH 从该 schema
+生成设置表单，并将选择写入当前 profile 的 Cordis patch。
+`@deepseek-ai/schemastery` 是 DSH 工作区私有包，因此 `src/schema.mjs`
+实现所需的 Standard Schema 校验接口和 `{uid, refs}` 描述格式，无需安装时构建或新增依赖。
 
 ## 测试
 
 ```sh
 node build-client.mjs   # 或 npm run build
-npm test                # 五个套件，共 107 项检查，不需要运行中的 dsh
+npm test                # 五个套件，不需要运行中的 dsh
 node e2e-test.mjs       # 可选：真实浏览器里的端到端验证，22 项
 ```
 
 | 套件 | 覆盖 |
 | --- | --- |
 | `verify-contract.mjs` (15) | 复现 dsh 的客户端发现链路：包名、`dsh.client`、`./client` 导出形状、bundle id 与 package name 一致 |
-| `schema-test.mjs` (21) | 自带的 settings schema：校验与默认值、未知 id 回退、`toJSON()` 输出能被 schemastery 重新水合 |
+| `schema-test.mjs` | Config 校验、未知 id 回退、volatile 描述格式 |
 | `self-test.mjs` (19) | 浏览器端逻辑：接管时机（loading 期不接管）、92 token 覆盖、切换与持久化、未知 id 回退 |
-| `host-test.mjs` (41) | 宿主端：**注册必须发生在同步阶段**（见下）、schema 校验、首屏注入的选择器 / 特异性顺序 / 两条规则的值 |
+| `host-test.mjs` | 宿主端：Config 校验、实时切换和首屏注入 |
 | `bundle-test.mjs` (11) | 执行**真实产物** `lib/client.js`：注册形状、只 require `react`、导出面、内联数据完整 |
 | `e2e-test.mjs` (22) | 真实浏览器（playwright + 本机 Chrome）：设置行出现、9 个选项、切换后浏览器端接管、持久化、重载后首屏层先绘制、两层取值一致、无 console 报错 |
 
@@ -192,9 +173,9 @@ dsh 检出不在默认位置时用 `DSH_CHECKOUT=/path/to/dsh` 覆盖。
 ## 目录
 
 ```
-host.js             宿主入口：同步注册 namespace，接线首屏注入
-src/plugin.mjs      宿主端实现：注入行的构造（静态导入，不可跨 await 注册）
-src/schema.mjs      自带的 settings schema（无外部依赖）
+host.js             宿主入口：导出 Config，接线首屏注入
+src/plugin.mjs      宿主端实现：注入行的构造
+src/schema.mjs      自带的 Config schema（无外部依赖）
 presets.mjs         唯一数据源：8 个预设的锚点色 + deriveTokens()
 src/runtime.mjs     浏览器端源码（自包含函数，构建时内联进 bundle）
 build-client.mjs    生成 lib/client.js

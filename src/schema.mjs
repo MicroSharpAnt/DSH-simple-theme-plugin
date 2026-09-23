@@ -1,39 +1,15 @@
-/**
- * dsh-theme-presets — the settings schema, without a schema library.
- *
- * `@deepseek-ai/schemastery` is private to the dsh checkout: every internal use
- * is `workspace:^` and it is on no registry, so a plugin installed from git
- * cannot import it. The settings service uses only two things from a schema
- * (`packages/settings/settings/src/index.ts`):
- *
- *   L748  `schema(mergeLayers(base, section))`  — validate, default, return T
- *   L520  `schema.toJSON()`                     — describe the shape for the UI
- *
- * That is a small enough surface to implement exactly, and implementing it here
- * beats depending on an unreleased package: `npm install <git-url>` then works
- * with no extra setup.
- */
+/** Minimal Cordis Config schema for a git-installed plugin. */
 
 /** The field name the preset id lives under. */
 const FIELD = 'preset'
 
 /**
- * Build the schema the settings service resolves this namespace with.
- *
- * Two deliberate behaviours, both about not taking the row down:
- *
- *  - **A missing field defaults.** `settings` merges the composition base and
- *    the stored section before calling, so an absent section arrives as `{}` or
- *    `undefined`; that must resolve, not throw.
- *  - **An unknown id falls back instead of rejecting.** `register` judges the
- *    stored section at registration time and a throw there fails the whole
- *    namespace. A preset renamed or removed in a later version would otherwise
- *    strand anyone who had it selected, with no way back through the UI. Falling
- *    back keeps the plugin mountable and lets the person pick again.
+ * Build the Config schema Cordis validates and Settings exposes as a live form.
+ * Missing and removed preset ids resolve to the default.
  *
  * @param {readonly string[]} ids - accepted preset ids.
  * @param {string} fallback - id used when the field is missing or unrecognized.
- * @returns {((value: unknown) => { preset: string }) & { toJSON: () => object }} the schema.
+ * @returns {Function} a Standard Schema with a Schemastery-compatible descriptor.
  */
 export function createPresetSchema(ids, fallback) {
   const allowed = new Set(ids)
@@ -43,10 +19,19 @@ export function createPresetSchema(ids, fallback) {
     const section = value === null || typeof value !== 'object' ? {} : value
     const stored = section[FIELD]
     const preset = typeof stored === 'string' && allowed.has(stored) ? stored : fallback
-    return { [FIELD]: preset }
+    let current = preset
+    return { [FIELD]: Object.freeze({
+      get: () => current,
+      [Symbol.for('cosmokit.volatile.write')]: (next) => { current = next },
+    }) }
   }
 
   schema.toJSON = () => presetSchemaJson(ids, fallback)
+  schema['~standard'] = {
+    version: 1,
+    vendor: 'dsh-theme-presets',
+    validate: (value) => ({ value: schema(value) }),
+  }
   return schema
 }
 
@@ -81,7 +66,7 @@ export function presetSchemaJson(ids, fallback) {
     return id
   })
   const unionId = nextId()
-  refs[unionId] = { type: 'union', meta: { default: fallback }, list: constIds }
+  refs[unionId] = { type: 'union', meta: { default: fallback, volatile: true }, list: constIds }
   const objectId = nextId()
   refs[objectId] = { type: 'object', meta: { default: {} }, dict: { [FIELD]: unionId } }
 

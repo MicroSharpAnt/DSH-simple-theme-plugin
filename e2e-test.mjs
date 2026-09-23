@@ -51,7 +51,7 @@ function resolvePlaywright(checkout) {
 
 const checkout = resolveCheckout()
 const serviceLog = join(checkout, '.dsh-build', 'recovered-service.log')
-const settingsFile = join(homedir(), '.dsh', 'settings.yaml')
+const settingsFile = join(homedir(), '.dsh', 'profiles', 'web', 'cordis.patch.yml')
 
 /** Nord's Snow Storm base, i.e. what the light palette must resolve to. */
 const NORD_LIGHT_BASE = '#eceff4'
@@ -84,8 +84,8 @@ const read = () => page.evaluate(() => ({
   attr: document.body.getAttribute('data-dsh-theme-preset'),
   inline: document.body.style.getPropertyValue('--dsw-alias-bg-base').trim(),
 }))
-/** The preset recorded in settings.yaml, or '(none)'. */
-const persisted = () => /theme-presets:\s*\n\s*preset:\s*(\S+)/.exec(readFileSync(settingsFile, 'utf8'))?.[1] ?? '(none)'
+/** The preset recorded in the Web profile patch, or '(none)'. */
+const persisted = () => /id:\s*theme-presets[\s\S]*?config:\s*\n\s*preset:\s*(\S+)/.exec(readFileSync(settingsFile, 'utf8'))?.[1] ?? '(none)'
 const openSettings = async () => {
   await page.getByRole('button', { name: '设置', exact: true }).click()
   await page.waitForTimeout(2000)
@@ -141,7 +141,7 @@ try {
   check(selected.inline === NORD_LIGHT_BASE, 'selecting Nord applies the palette through the client half',
     `inline=${JSON.stringify(selected.inline)}`)
   check(selected.attr === null, 'the client half hands off by clearing the body attribute')
-  check(persisted() === 'nord', 'the selection is persisted to settings.yaml', persisted())
+  check(persisted() === 'nord', 'the selection is persisted to the Web profile patch', persisted())
 
   await page.reload({ waitUntil: 'domcontentloaded' })
   const prepaint = await read()

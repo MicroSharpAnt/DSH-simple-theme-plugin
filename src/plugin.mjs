@@ -1,24 +1,4 @@
-/**
- * dsh-theme-presets — host implementation, loaded by `host.js`.
- *
- * Split by *when* each part must be available rather than by topic:
- *
- *  - `createPresetSchema` and `injectPreset` are imported **statically** by the
- *    entry. Registration has to happen before the client's settings mirror
- *    reads `settings.describe`, and that read can be in flight before this
- *    module finishes loading, so nothing on the registration path may cross an
- *    `await`. `injectPreset` is static for the same reason it is small: it runs
- *    synchronously inside the index response.
- *
- *  - The palette data is resolved through an mtime-keyed specifier instead, so
- *    retuning `presets.mjs` reaches a running process on the next index render.
- *
- * The split matters because getting it wrong fails silently: a namespace that
- * registers late never gets described, its client scope stays `loading`, and
- * the browser half — which waits for `ready` before adopting — quietly leaves
- * the stored preset unapplied while the settings row still renders and writes
- * still work.
- */
+/** Host index injection, with palette data refreshed when presets.mjs changes. */
 import { statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -76,20 +56,6 @@ export function currentPresets() {
 }
 
 /**
- * Read the durable preset without requiring the settings scope.
- * @param {object} ctx - host context.
- * @param {string} fallback - value used when nothing usable is stored.
- * @returns {string} the selected preset id.
- */
-function readPreset(ctx, fallback) {
-  const settings = ctx.get('settings')
-  if (settings === undefined) return fallback
-  const section = settings.get(NAMESPACE)
-  const preset = section === undefined || section === null ? undefined : section[PRESET_FIELD]
-  return typeof preset === 'string' ? preset : fallback
-}
-
-/**
  * Build the boot style for one preset.
  *
  * Both rules are `(0,1,2)`-specific so they outrank the base stylesheets'
@@ -117,12 +83,11 @@ function bootStyle(presets, preset) {
  * Synchronous by contract: the webserver emits `index-inject` synchronously
  * while rendering, so an async handler would push its rows after the response
  * was already assembled.
- * @param {object} ctx - host context.
  * @param {Array<object>} table - the injection rows to append to.
  * @param {object} presets - the loaded `presets.mjs` module.
- * @param {{ namespace: string, presetField: string }} spec - namespace contract.
+ * @param {string} preset - current live preset id.
  */
-export function injectPreset(ctx, table, presets, spec) {
+export function injectPreset(table, presets, preset) {
   // `statSync` is cheap and this runs once per index render; when the palette
   // file changed under a running process, warm the new revision so the next
   // render uses it instead of requiring a reload.
@@ -134,7 +99,6 @@ export function injectPreset(ctx, table, presets, spec) {
   } catch { /* the file is owned by the deployment; a read failure keeps the current revision */ }
 
   const fallback = presets.DEFAULT_PRESET_ID
-  const preset = readPreset(ctx, fallback)
   if (preset === fallback) return
   const style = bootStyle(presets, preset)
   if (style === '') return

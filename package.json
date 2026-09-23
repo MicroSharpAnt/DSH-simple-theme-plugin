@@ -1,6 +1,6 @@
 {
   "name": "dsh-theme-presets",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Preset color themes for the DSH Web GUI: Nord, Dracula, Catppuccin, Tokyo Night, One Dark, Gruvbox, Solarized and GitHub, layered over the --dsw-alias-* token surface.",
   "type": "module",
   "license": "MIT",

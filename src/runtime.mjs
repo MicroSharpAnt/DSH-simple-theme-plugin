@@ -196,9 +196,12 @@ export function install(require, React, data) {
           current = id
           if (document.body !== null) applyPreset(id)
           for (const listener of presetListeners) listener()
-          // A rejected write leaves the durable value stale; the scope's own
-          // recovery read settles it and `adopt` corrects the visual state.
-          void scope.set('preset', id).catch(() => {})
+          // The form reports an unavailable or read-only write as false.
+          // Restore the actual saved choice if this optimistic selection fails.
+          void scope.set('preset', id).then(
+            (saved) => { if (!saved && current === id) adopt() },
+            () => { if (current === id) adopt() },
+          )
         },
       }),
     }, Row))
